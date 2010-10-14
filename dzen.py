@@ -75,7 +75,7 @@ def cache_exists(filename):
 def read_remote(host, command):
     try:
         cmd = shlex.split('/usr/bin/ssh %s %s' % (host, command))
-        p = sub.Popen(cmd, stdout=sub.PIPE)
+        p = sub.Popen(cmd, stdout=sub.PIPE, stderr=sub.PIPE)
         p.wait()
         return p.stdout.read()
     except:
@@ -98,8 +98,8 @@ def colorlist(colors, val, default = C_DEFAULT):
 #                        ACTUAL HAX                        #
 ############################################################
 
-def battery():
-    if not cache_exists('battery') or shift(10):
+def battery(poll):
+    if not cache_exists('battery') or poll:
         info = open(os.path.join(BATTERY, 'info'), 'r')
         state = open(os.path.join(BATTERY, 'state'), 'r')
         data = {}
@@ -147,8 +147,8 @@ def battery():
     else:
         return get_cache('battery')
 
-def mail():
-    if not cache_exists('mail') or shift(60):
+def mail(poll):
+    if not cache_exists('mail') or poll:
         count = read_remote(REMOTE, 'find mail | grep new/ | wc -l')
         if count:
             ret = int(count)
@@ -166,9 +166,9 @@ def mail():
     else:
         return get_cache('mail')
 
-def load(hostname, remote = False):
+def load(poll, hostname, remote = False):
     filename = 'load_%s' % hostname
-    if not cache_exists(filename) or shift(60 * 5, 30):
+    if not cache_exists(filename) or poll:
         if remote:
             try:
                 data = read_remote(remote, 'cat /proc/loadavg').split()
@@ -179,15 +179,19 @@ def load(hostname, remote = False):
             data = f.readline().split()
             f.close()
 
-        ret = '%s %s %s' % (data[0], data[1], data[2])
+        try:
+            ret = '%s %s %s' % (data[0], data[1], data[2])
+        except:
+            return stale(filename)
+
         set_cache(filename, ret)
         return ret
     else:
         return get_cache(filename)
 
-def packetloss(hostname, remote):
+def packetloss(poll, hostname, remote):
     filename = 'packetloss_%s' % hostname
-    if not cache_exists(filename) or shift(20 * 60, 10):
+    if not cache_exists(filename) or poll:
         cmd = r"tail -n 4 .logs/pinger.log | grep -Eo \'[[:digit:]]+%\'"
         if remote:
             ret = read_remote(remote, cmd)
@@ -208,8 +212,8 @@ def packetloss(hostname, remote):
     else:
         return get_cache(filename)
 
-def temperature():
-    if not cache_exists('temperature') or shift(60, 20):
+def temperature(poll):
+    if not cache_exists('temperature') or poll:
         tempfile = open(os.path.join(TEMPERATURE, 'temp1_input'), 'r')
         temp = int(tempfile.readline()) / 1000
 
@@ -222,8 +226,8 @@ def temperature():
     else:
         return get_cache('temperature')
 
-def volume():
-    if not cache_exists('volume') or shift(10):
+def volume(poll):
+    if not cache_exists('volume') or poll:
         tempfile = open(os.path.join(volume, 'temp1_input'), 'r')
         temp = int(tempfile.readline()) / 1000
 
@@ -244,22 +248,18 @@ if __name__ == '__main__':
         # O MY ZOMG, DO STUFF
         output = SEPARATOR
 
-        output += host('pepper', '#722323')
-        output += load('pepper', 'git@pepper')
-        output += SEPARATOR
-
         output += host('ninjaloot', '#127212')
-        output += load('ninjaloot',  REMOTE) + ' '
-        output += packetloss('ninjaloot',  REMOTE)
+        output += load(shift(60, 20), 'ninjaloot',  REMOTE) + ' '
+        output += packetloss(shift(60, 40), 'ninjaloot',  REMOTE)
         output += SEPARATOR
 
         output += host('justicia', '#405060')
-        output += load('justicia')
+        output += load(shift(60), 'justicia')
         output += SEPARATOR
 
-        output += temperature() + SEPARATOR
-        output += battery() + SEPARATOR
-        output += mail() + SEPARATOR
+        output += temperature(shift(60, 20)) + SEPARATOR
+        output += battery(shift(10)) + SEPARATOR
+        output += mail(shift(60)) + SEPARATOR
 
         if cache_exists('force'):
             clear_cache('force')
