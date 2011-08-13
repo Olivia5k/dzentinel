@@ -2,7 +2,6 @@
 # coding=utf-8
 
 import os
-import sys
 import re
 import time
 
@@ -11,13 +10,14 @@ import shlex
 
 REMOTE = 'daethorian@ninjaloot.se'
 DATE_FMT = '%b %d %H:%M:%S'
-BATTERY = '/proc/acpi/battery/BAT0'
+#BATTERY = '/proc/acpi/battery/BAT0'
 TEMPERATURE = '/sys/bus/platform/devices/thinkpad_hwmon'
+CHECKHOST = "google.com"
 
-C_ALERT = '#ff0000'
-C_DEFAULT = '#647474'
-C_STALE = '#384242'
-SEPARATOR = ' ^fg(#333333)|^fg(%s) ' % C_DEFAULT
+C_ALERT = '#d70000'
+C_DEFAULT = '#888888'
+C_STALE = '#87af87'
+SEPARATOR = ' ^fg(#87af87)|^fg(%s) ' % C_DEFAULT
 
 CL_PACKETLOSS = (
     (20, C_ALERT),
@@ -75,6 +75,7 @@ def cache_exists(filename):
 def read_remote(host, command):
     try:
         cmd = shlex.split('/usr/bin/ssh %s %s' % (host, command))
+        #print(cmd)
         p = sub.Popen(cmd, stdout=sub.PIPE, stderr=sub.PIPE)
         p.wait()
         return p.stdout.read()
@@ -82,7 +83,11 @@ def read_remote(host, command):
         return False
 
 def stale(filename, color = C_STALE):
-    return '^fg(%s)%s' % (color, get_cache(filename))
+    cache = get_cache(filename)
+    if cache[:3] == "^fg":
+        cache = cache[12:]
+        set_cache(filename, cache)
+    return '^fg(%s)%s' % (color, cache)
 
 def host(host, color):
     return '^fg(%s)%s^fg(%s): ' % (color, host, C_DEFAULT)
@@ -93,6 +98,11 @@ def colorlist(colors, val, default = C_DEFAULT):
             return pair[1]
     return default
 
+def get_icon(name):
+    # TODO: Add real logic
+    path = "/home/daethorian/git/dzentinel/icon"
+    return "^i(%s/%s.xbm)" % (path, name)
+
 
 ############################################################
 #                        ACTUAL HAX                        #
@@ -100,47 +110,31 @@ def colorlist(colors, val, default = C_DEFAULT):
 
 def battery(poll):
     if not cache_exists('battery') or poll:
-        info = open(os.path.join(BATTERY, 'info'), 'r')
-        state = open(os.path.join(BATTERY, 'state'), 'r')
-        data = {}
+        cmd = '/usr/bin/acpi'
+        pro = sub.Popen(cmd, stdout=sub.PIPE, stderr=sub.PIPE, shell=True)
+        pro.wait()
+        status = str(pro.stdout.read())
 
-        # Take everything in the battery files and put it in a dict \o/
-        for obj in (info, state):
-            for line in obj.readlines():
-                key, val = line.split(':')
-                data[key] = val.strip()
-
-        if data['charging state'] in ('charged', 'charging'):
+        if re.search("(Charging|Full|Unknown)", status):
             # For now, if AC is in, just show icon
             # TODO: Calculate time until fully charged?
-            ret = '^i(icon/ac_01.xbm)'
+            ret = get_icon('ac_01')
         else:
-            remaining = int(re.search(r'\d+', data['remaining capacity']).group(0))
-            full = int(re.search(r'\d+', data['last full capacity']).group(0))
-            rate = int(re.search(r'\d+', data['present rate']).group(0))
+            remaining = re.search(r'(\d\d:\d\d):\d\d remaining', status).group(1)
+            percent = int(re.search(r'(\d+)%', status).group(1))
 
-            percent = (remaining * 100) / full
-            try:
-                timeleft = remaining / (rate / 60)
-                hours = timeleft / 60
-                minutes = timeleft % 60
-            except ZeroDivisionError:
-                # If the change happens within 500 msec or so from the
-                # loading of the file, rate will be 0 and an error will return.
-                return get_cache('battery')
-
-            if percent <= 10:
+            if percent <= 5:
                 color = '#db0000'
-                icon = '^i(icon/bat_empty_01.xbm)'
-            elif percent <= 25:
+                icon = get_icon('bat_empty_01')
+            elif percent <= 10:
                 color = '#ff3600'
-                icon = '^i(icon/bat_low_01.xbm)'
+                icon = get_icon('bat_low_01')
             else:
                 color = C_DEFAULT
-                icon = '^i(icon/bat_full_01.xbm)'
+                icon = get_icon('bat_full_01')
 
-            t = (color, percent, icon, hours, minutes)
-            ret = '^fg(%s)%s%% %s (%d:%02d)' % t
+            t = (color, percent, icon, remaining)
+            ret = '^fg(%s)%s%% %s (%s)' % t
 
         set_cache('battery', ret)
         return ret
@@ -150,6 +144,10 @@ def battery(poll):
 def mail(poll):
     if not cache_exists('mail') or poll:
         count = read_remote(REMOTE, 'find mail | grep new/ | wc -l')
+        #cmd = '/usr/bin/find %s/mail | grep new/ | wc -l' % os.environ['HOME']
+        #p = sub.Popen(cmd, stdout=sub.PIPE, stderr=sub.PIPE, shell=True)
+        #p.wait()
+        #ret = int(p.stdout.read())
         if count:
             ret = int(count)
         else:
@@ -160,18 +158,43 @@ def mail(poll):
         else:
             ret = str(ret)
 
-        ret += ' ^i(icon/mail.xbm)'
+        ret += ' %s' % get_icon('mail')
         set_cache('mail', ret)
         return ret
     else:
         return get_cache('mail')
+
+def internets(poll):
+    filename = "internets"
+    if not cache_exists(filename) or poll:
+        cmd = "/usr/bin/netcat -z %s 80 -w 1" % CHECKHOST
+        p = sub.Popen(cmd, stdout=sub.PIPE, stderr=sub.PIPE, shell=True)
+        p.wait()
+        code = p.returncode
+
+        profile = "/var/run/network/last_profile"
+        if os.access(profile, os.F_OK):
+            pfile = open(profile, "r")
+            network = pfile.read().strip()
+            if code:
+                ret = '^fg(%s)%s' % (C_STALE, network)
+            else:
+                ret = network
+        else:
+            ret = ''
+
+        set_cache(filename, ret)
+        return ret
+    else:
+        return get_cache(filename)
 
 def load(poll, hostname, remote = False):
     filename = 'load_%s' % hostname
     if not cache_exists(filename) or poll:
         if remote:
             try:
-                data = read_remote(remote, 'cat /proc/loadavg').split()
+                data = read_remote(remote, 'cat /proc/loadavg')
+                data = [str(x) for x in data.split()]
             except:
                 return stale(filename)
         else:
@@ -202,10 +225,10 @@ def packetloss(poll, hostname, remote):
         else:
             return
 
-        x = int(re.search(r'\d+', ret).group(0))
+        x = int(re.search(r'\d+', ret.decode()).group(0))
         color = colorlist(CL_PACKETLOSS, x)
-        icon = 'icon/net_wired.xbm'
-        ret = '^fg(%s)^i(%s) %s%%' % (color, icon, x)
+        icon = get_icon('net_wired')
+        ret = '^fg(%s)%s %s%%' % (color, icon, x)
 
         set_cache(filename, ret)
         return ret
@@ -218,7 +241,7 @@ def temperature(poll):
         temp = int(tempfile.readline()) / 1000
 
         color = colorlist(CL_TEMP, temp)
-        icon = 'icon/temp.xbm'
+        icon = get_icon('temp')
         ret = '^fg(%s)%s°^i(%s)' % (color, temp, icon)
 
         set_cache('temperature', ret)
@@ -227,18 +250,7 @@ def temperature(poll):
         return get_cache('temperature')
 
 def volume(poll):
-    if not cache_exists('volume') or poll:
-        tempfile = open(os.path.join(volume, 'temp1_input'), 'r')
-        temp = int(tempfile.readline()) / 1000
-
-        color = colorlist(CL_TEMP, temp)
-        icon = 'icon/temp.xbm'
-        ret = '^fg(%s)%s°^i(%s)' % (color, temp, icon)
-
-        set_cache('volume', ret)
-        return ret
-    else:
-        return get_cache('volume')
+    pass
 
 def date():
     return time.strftime(DATE_FMT)
@@ -248,27 +260,31 @@ if __name__ == '__main__':
         # O MY ZOMG, DO STUFF
         output = SEPARATOR
 
-        output += host('ninjaloot', '#127212')
-        output += load(shift(60, 20), 'ninjaloot',  REMOTE) + ' '
-        output += packetloss(shift(60, 40), 'ninjaloot',  REMOTE)
+        output += internets(shift(20, 10))
+        output += SEPARATOR
+        #output += host('nl', '#dbdbdb')
+        #output += load(shift(60, 20), 'ninjaloot',  REMOTE) + ' '
+        #output += packetloss(shift(60, 40), 'ninjaloot',  REMOTE)
+        #output += SEPARATOR
+
+        output += host('it', '#dbdbdb')
+        output += load(shift(5), 'it')
         output += SEPARATOR
 
-        output += host('justicia', '#405060')
-        output += load(shift(60), 'justicia')
-        output += SEPARATOR
+        #output += temperature(shift(60, 20)) + SEPARATOR
+        output += battery(shift(30)) + SEPARATOR
+        output += mail(shift(15)) + SEPARATOR
 
-        output += temperature(shift(60, 20)) + SEPARATOR
-        output += battery(shift(10)) + SEPARATOR
-        output += mail(shift(60)) + SEPARATOR
-
-        if cache_exists('force'):
-            clear_cache('force')
 
         if cache_exists('clear'):
             output = re.sub(r'\n', '', output)
 
         set_cache('last', output)
+
+        if cache_exists('force'):
+            output = "^fg(%s)-%s" % (C_STALE, output)
+            clear_cache('force')
     else:
         output = get_cache('last')
 
-    print output + date() + ' '
+    print(output + date() + ' ')
