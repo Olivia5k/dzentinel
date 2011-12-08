@@ -4,9 +4,10 @@ NAME="dzentinel"
 SELF=$(readlink -f $0)
 source "$(dirname $SELF)/static.zsh"
 
-W=$((X - 108))
-H=15
+W=$((X - 128))
+XP=260
 
+H=15
 
 function mail()
 {
@@ -21,17 +22,17 @@ function mail()
     if [[ "$u" -gt 0 ]] ; then
         fgc=$CRIT
     else
-        fgc=$DZEN_FG
+        fgc=$FG
     fi
 
-    ret="^fg($fgc)^i($I/mail.xbm) ${u}^fg($COLOR_SEP)/^fg($DZEN_FG2)$r"
+    ret="^fg($fgc)^i($I/mail.xbm) ${u}^fg($SEP)/^fg($FG2)$r"
     set_cache "mail" "$ret"
 }
 
 function wireless()
 {
     b=$BAR_BG
-    f=$COLOR_SEP
+    f=$SEP
     signal=$(tail -1 /proc/net/wireless | cut -d\  -f6 | tr -d ".")
     ret="$(echo $signal | gdbar -s o -h 9 -w 51 -bg $b -fg $f -max 73)"
 
@@ -40,18 +41,17 @@ function wireless()
 
 function internets()
 {
-    if has_cache "internets" 60; then
+    if has_cache "internets" 20; then
         return
     fi
 
     if netcat -z $CHECKHOST 80 -w 1 &> /dev/null ; then
-        fgc=$DZEN_FG
+        fgc=$FG
     else
         fgc=$DEAD
     fi
 
-    profile=$(cat $NETCFG)
-    ret="^fg($COLOR_ICON)^i($I/wifi_01.xbm)^fg($fgc) $profile "
+    ret="^fg($ICON)^i($I/wifi_01.xbm)^fg($fgc) "
     set_cache "internets" "$ret"
 }
 
@@ -61,8 +61,8 @@ function kernel()
         return
     fi
 
-    ret="^fg($COLOR_SEP)^i($I/arch.xbm) "
-    ret+="^fg()$(uname -r)^fg($COLOR_SEP)" # /^fg($DZEN_FG2)$(uname -m)
+    ret="^fg($SEP)^i($I/arch.xbm) "
+    ret+="^fg()$(uname -r)^fg($SEP)" # /^fg($FG2)$(uname -m)
 
     set_cache "kernel" "$ret"
 }
@@ -76,9 +76,9 @@ function load()
         if [[ "$load" -gt 2 ]]; then
             c=$CRIT
         elif [[ "$load" -gt 1 ]]; then
-            c=$DZEN_FG
+            c=$FG
         else
-            c=$DZEN_FG2
+            c=$FG2
         fi
         ret+=" ^fg($c)$load"
     done
@@ -99,9 +99,9 @@ function ninjaloot()
         if [[ "$load" -gt 2 ]]; then
             c=$CRIT
         elif [[ "$load" -gt 1 ]]; then
-            c=$DZEN_FG
+            c=$FG
         else
-            c=$DZEN_FG2
+            c=$FG2
         fi
         ret+=" ^fg($c)$load"
     done
@@ -120,30 +120,20 @@ function warez()
     d=$(echo $w | awk -F' ' '{ print $4 }')
 
     ret="^i($I/shroom.xbm) "
-    ret+="^fg($DZEN_FG2)^fg()${p}% $d"
+    ret+="^fg($FG2)^fg()${p}% $d"
 
     set_cache "disk" "$ret"
 }
 
-function nmount()
+function mounted()
 {
-    if mount | grep -E "^nl: on" &> /dev/null; then
-        NMOUNT=$COLOR_SEP
+    if mount | grep -E "^$1 on" &> /dev/null; then
+        C=$SEP
     else
-        NMOUNT=$DZEN_FG
+        C=$FG
     fi
 
-    echo -n "^fg($NMOUNT)"
-}
-
-function wmount()
-{
-    if mount | grep -E "^nl:/warez on" &> /dev/null; then
-        NWAREZ=$COLOR_SEP
-    else
-        NWAREZ=$DZEN_FG
-    fi
-    echo -n "^fg($NWAREZ)"
+    echo -n "^fg($C)"
 }
 
 function battery()
@@ -154,7 +144,7 @@ function battery()
 
     b=$(acpi)
     if echo $b | grep -E "(Unknown|Full|Charging)" &> /dev/null ; then
-        c=$COLOR_ICON
+        c=$ICON
         i="ac_01"
         p=""
     else
@@ -164,33 +154,31 @@ function battery()
             c=$CRIT
         elif [[ "$p" -lt 25 ]] ; then
             i="bat_low_01"
-            c=$COLOR_ICON
+            c=$ICON
         else
             i="bat_full_01"
-            c=$COLOR_ICON
+            c=$ICON
         fi
         p=" ${p}%"  # Make it look nice
     fi
 
-    ret=" ^fg($c)^i($I/$i.xbm)$p"
+    ret="^fg($c)^i($I/$i.xbm)$p"
     set_cache "battery" "$ret"
 }
 
 function volume()
 {
     perc=$(amixer get PCM | grep "Front Left:" | awk '{print $5}' | tr -d '[]%')
-    mute=$(amixer get Master | grep "Front Left:" | awk '{print $7}')
+    mute=$(amixer get Master | grep "Mono:" | awk '{print $6}')
 
     if [[ $mute == "[off]" ]]; then
         icon="spkr_02"
-        fgc=$DZEN_FG2
+        fgc=$FG2
     else
         icon="spkr_01"
-        fgc=$DZEN_FG
+        fgc=$FG
     fi
-    echo -n "^fg($COLOR_ICON)^i($I/$icon.xbm)^fg($fgc) ${perc}%"
-    #echo -n "$(echo $perc | \
-        #gdbar -s v -h 9 -w 10 -bg $DZEN_BG -fg $COLOR_SEP)"
+    echo -n "^fg($ICON)^i($I/$icon.xbm)^fg($fgc) ${perc}%"
 }
 
 function processes()
@@ -200,33 +188,83 @@ function processes()
     fi
 
     proc=$(expr $(ps -A | wc -l) - 1)
-    ret="^fg($COLOR_ICON)^i($I/cpu.xbm) ^fg()$proc "
+    ret="^fg($ICON)^i($I/cpu.xbm) ^fg()$proc "
     set_cache "processes" "$ret"
 }
 
 function packages()
 {
-    if has_cache "packages" 600 ; then
+    if has_cache $1 60 ; then
         return
     fi
 
-    pkgs=$(pacman -Q | wc -l)
-    ret="^fg($COLOR_ICON)^i($I/pacman.xbm) ^fg()$pkgs"
-    set_cache "packages" "$ret"
+    eval "cmd=$2"
+    counts=(${(s: :)cmd})
+    ipkgs=${counts[1]}
+    pkgs=${counts[2]}
+
+    if [[ pkgs -gt 0 ]]; then
+        if [[ $pkgs -gt $4 ]]; then
+            c=$CRIT
+        elif [[ $pkgs -gt $3 ]]; then
+            c=$FG
+        else
+            c=$FG2
+        fi
+        pkgs="^fg($SEP)/^fg($c)$pkgs"
+    else
+        pkgs=""
+    fi
+
+    ret="^fg($ICON)^i($I/pacman.xbm) ^fg()${ipkgs}$pkgs"
+    set_cache $1 "$ret"
+}
+
+function mp3()
+{
+    if has_cache "mp3" $MP3_CACHE ; then
+        return
+    fi
+
+    get_mpc
+
+    if [[ -z "$TITLE" ]]; then
+        MP3_CACHE=30
+        set_cache "mp3" ""
+        return
+    else
+        MP3_CACHE=1
+    fi
+
+    if [[ "$ACTION" != "pause" ]]; then
+        icon="$I/phones.xbm"
+        fgc=""
+    else
+        icon="$I/pause.xbm"
+        fgc="$FG2"
+    fi
+
+    ret="^fg($SEP)^i($icon) ^fg($fgc)$NP ^fg($SEP)|^fg() "
+    set_cache "mp3" "$ret"
 }
 
 function dates()
 {
-    f='+%Y^fg(#444).^fg()%m^fg(#444).^fg()%d^fg(#007b8c)/^fg(#5f656b)%a'
-    f+=' ^fg(#a488d9)| ^fg()%H^fg(#444):^fg()%M^fg(#444):^fg()%S'
+    f="+%Y^fg($BG2).^fg()%m^fg($BG2).^fg()%d^fg($SEP)/^fg($BG2)%a"
+    f+=" ^fg($SEP)| ^fg()%H^fg($BG2):^fg()%M^fg($BG2):^fg()%S"
 
-    echo -n "^fg()$(date $f)"
+    echo -n $(date $f)
 }
 
 function sep()
 {
-    echo -n " ^fg($COLOR_SEP)|^fg() "
+    echo -n " ^fg($SEP)|^fg() "
     return
+}
+
+function space()
+{
+    echo -n " "
 }
 
 function arrow()
@@ -236,7 +274,7 @@ function arrow()
     else
         s=">"
     fi
-    echo -n " ^fg($BAR_FG)${s}^fg($COLOR_SEP)${s}^fg($DZEN_FG2)${s} "
+    echo -n " ^fg($BAR_FG)${s}^fg($SEP)${s}^fg($FG2)${s} "
     return
 }
 
@@ -249,16 +287,27 @@ else
     while true; do
         E=$(date +'%s')
 
-        kernel ; sep
-        processes ; packages ; battery ; load ; sep
-        nmount ; ninjaloot ; wmount ; warez ; sep
-        volume ; sep
-        internets ; wireless ; sep
-        mail ; sep
+        kernel; sep
+        mp3;
+        processes;
+        battery;
+        load;
+        space;
+        packages 'packages' '$(<$COUNT)' 10 20; sep
+        mounted "nl:";
+        ninjaloot;
+        mounted "nl:/warez";
+        warez;
+        space;
+        packages 'npackages' '$(ssh nl cat $COUNT)' 50 100; sep
+        volume; sep
+        internets;
+        wireless; sep
+        #mail; sep
         dates
 
         if [[ -f "$DIR/force" ]]; then
-            echo -n "^fg($DZEN_FG2)!"
+            echo -n "^fg($FG2)!"
             rm "$DIR/force"
         else
             echo -n " "
@@ -267,6 +316,6 @@ else
         echo
         sleep 1
     done | \
-        dzen2 -dock -fn $FONT -bg $BG -ta r -sa r # -x $X -y $y
+         dzen2 -fn $FONT -bg $BG -y 2 -x $XP -ta r -sa rc -w $W
 fi
 exit 0

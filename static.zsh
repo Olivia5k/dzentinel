@@ -3,7 +3,7 @@
 DIR="$XDG_CACHE_HOME/dzen"
 
 FONT="-*-montecarlo-medium-*-*-*-11-*-*-*-*-*-*-*"
-BG="#1a1a1a"
+BG="#151515"
 
 d="[[:digit:]]"
 SIZE=$(xrandr | grep -Eo "$d+x$d+\+$d+\+$d+")
@@ -15,25 +15,27 @@ CRIT="#ee0d0d"
 DEAD="#8f0d0d"
 BAR_FG="#a488d9"
 BAR_BG="#363636"
-DZEN_FG="#9d9d9d"
-#DZEN_FG2="#5f656b"
-DZEN_FG2="#44484c"
-DZEN_BG="#050505"
-DZEN_BG2="#292929"
-COLOR_ICON="#a488d9"
-COLOR_SEP="#007b8c"
+FG="#9d9d9d"
+#FG2="#5f656b"
+FG2="#444444"
+BG="#151515"
+BG2="#292929"
+ICON="#888888"
+SEP="#225587"
 
 # Static variables
 I="/home/daethorian/.local/icons"  # Iconpath. Cut down to "I" to save space
 REMOTE="nl"  # ssh config
 CHECKHOST="google.com"
 NETCFG="/var/run/network/last_profile"
+COUNT="/dev/shm/fakepacdb/counts"
+
+MP3_CACHE=5
 
 # Storage variables
 E=$(date +'%s')
 RUNNING=$(ps haux | grep -i $NAME | grep -Ev '(grep|vim)' \
     | grep -i $NAME | wc -l)
-
 
 
 function has_cache()
@@ -83,8 +85,11 @@ function get_mpc()
     # Cool loop that sets the above as variables e.g: REPEAT="off"
     for x in ${(s:  :)mpc[5]}; do
         a=(${(s: :)x})
-        eval "${(U)a[1]%:}=${a[2]# }"
+
+        # Catch if the second part becomes an empty string.
+        if [[ -n "${a[2]# }"  ]]; then
+            eval "${(U)a[1]%:}=${a[2]# }"
+        fi
     done
     unset x
 }
-
