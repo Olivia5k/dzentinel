@@ -248,10 +248,48 @@ function mp3()
     set_cache "mp3" "$ret"
 }
 
+function mancx()
+{
+    if has_cache "mancx" 60; then
+        return
+    fi
+
+    uq="SELECT COUNT(*) FROM users_profile"
+    iq="SELECT COUNT(*) FROM users_invite"
+
+    ds="WHERE date_created > DATE_SUB(NOW(), INTERVAL 1 DAY)"
+    uqd="$uq $ds"
+    iqd="$iq $ds"
+    i="AND invite_type = 'invite'"
+    fbd="$iqd AND medium='facebook' $i"
+    lid="$iqd AND medium='linkedin' $i"
+    vdd="$iqd AND medium='viadeo' $i"
+
+    q="$uq; $uqd; $iq; $fbd; $lid; $vdd"
+    echo $q > /tmp/q
+    d=$(ssh dt mysql mancx_django -e ${(qqq)q})
+    a=(${(f)d})
+
+    usr=${a[2]}
+    usrt=${a[4]}
+    inv=${a[6]}
+    fbt=${a[8]}
+    lit=${a[10]}
+    vdt=${a[12]}
+
+    ret="^i($I/fox.xbm) ${usr}(^fg(#4AAD36)${usrt}^fg())^fg($FG2)/"
+    ret+="^fg()${inv}("
+    ret+="^fg(#3b5998)${fbt}^fg($FG2)/"
+    ret+="^fg(#0181B2)${lit}^fg($FG2)/"
+    ret+="^fg(#ee7600)${vdt}"
+    ret+="^fg())"
+    set_cache "mancx" "$ret"
+}
+
 function dates()
 {
-    f="+%Y^fg($BG2).^fg()%m^fg($BG2).^fg()%d^fg($SEP)/^fg($BG2)%a"
-    f+=" ^fg($SEP)| ^fg()%H^fg($BG2):^fg()%M^fg($BG2):^fg()%S"
+    f="+%Y^fg($FG2).^fg()%m^fg($FG2).^fg()%d^fg($SEP)/^fg($FG2)%a"
+    f+=" ^fg($SEP)| ^fg()%H^fg($FG2):^fg()%M^fg($FG2):^fg()%S"
 
     echo -n $(date $f)
 }
@@ -288,6 +326,7 @@ else
         E=$(date +'%s')
 
         kernel; sep
+        mancx; sep
         mp3;
         processes;
         battery;
@@ -316,6 +355,6 @@ else
         echo
         sleep 1
     done | \
-         dzen2 -fn $FONT -bg $BG -y 2 -x $XP -ta r -sa rc -w $W
+         dzen2 -fn $FONT -bg $BG -h 17 -ta r -sa rc -dock
 fi
 exit 0

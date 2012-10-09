@@ -2,6 +2,8 @@
 
 DIR="$XDG_CACHE_HOME/dzen"
 
+# FONT="xft:inconsolata:pixelsize=12:spacing:proportional"
+# FONT="-xos4-terminus-*-*-*-*-14-*-*-*-*-*-*-*"
 FONT="-*-montecarlo-medium-*-*-*-11-*-*-*-*-*-*-*"
 BG="#151515"
 
@@ -9,6 +11,7 @@ d="[[:digit:]]"
 SIZE=$(xrandr | grep -Eo "$d+x$d+\+$d+\+$d+")
 X=$(echo $SIZE | cut -f1 -dx)
 Y=$(echo $SIZE | cut -f2 -dx | sed -r "s/\+$d+\+$d+//")
+X=1785
 
 #Colors
 CRIT="#ee0d0d"
@@ -17,7 +20,7 @@ BAR_FG="#a488d9"
 BAR_BG="#363636"
 FG="#9d9d9d"
 #FG2="#5f656b"
-FG2="#444444"
+FG2="#666666"
 BG="#151515"
 BG2="#292929"
 ICON="#888888"
