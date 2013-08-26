@@ -2,30 +2,31 @@
 
 NAME="dzentinel"
 SELF=$(readlink -f $0)
-source "$(dirname $SELF)/static.zsh"
+source "$(dirname $SELF)/static.zsh" || exit 1
 
-W=$((X - 128))
-XP=260
+echo $X
+W=$((X - 118))
+XP=100
 
 H=15
 
 function mail()
 {
-    if has_cache "mail" 20 ; then
+    if has_cache "mail" 10 ; then
         return
     fi
 
-    m=$(ssh $REMOTE ".local/bin/mailcount")
-    u=$(echo $m | cut -f1 -d\ )  # Unread
-    r=$(echo $m | cut -f2 -d\ )  # Read
+    m=$(ls $HOME/.mail/spotify/*/new/* | grep -v '/archive/' | wc -l)
 
-    if [[ "$u" -gt 0 ]] ; then
+    if [[ "$m" -gt 60 ]] ; then
         fgc=$CRIT
-    else
+    elif [[ "$m" -gt 10 ]] ; then
         fgc=$FG
+    else
+        fgc=$FG2
     fi
 
-    ret="^fg($fgc)^i($I/mail.xbm) ${u}^fg($SEP)/^fg($FG2)$r"
+    ret="^fg($fgc)^i($I/mail.xbm) $m"
     set_cache "mail" "$ret"
 }
 
@@ -33,10 +34,15 @@ function wireless()
 {
     b=$BAR_BG
     f=$SEP
-    signal=$(tail -1 /proc/net/wireless | cut -d\  -f6 | tr -d ".")
-    ret="$(echo $signal | gdbar -s o -h 9 -w 51 -bg $b -fg $f -max 73)"
+    wl=$(tail -1 /proc/net/wireless | tr -s " ")
+    interface=$(echo $wl | cut -f1 -d" ")
 
-    echo -n $ret
+    ssid=$(iw $interface link | grep SSID: | tr -d " " | cut -f2 -d:)
+    signal=$(echo $wl | cut -f3 -d" " | tr -d ".")
+
+    bar="$(echo $signal | gdbar -s o -h 9 -w 51 -bg $b -fg $f -max 73)"
+
+    echo -n "$ssid $bar"
 }
 
 function internets()
@@ -69,7 +75,7 @@ function kernel()
 
 function load()
 {
-    ret=""
+    ret="^fg($ICON)^i($I/scorpio.xbm)"
 
     f="/proc/loadavg"
     for load in $(cat $f | grep -Eo "[[:digit:]]\.[[:digit:]]{2}") ; do
@@ -136,34 +142,34 @@ function mounted()
     echo -n "^fg($C)"
 }
 
-function battery()
+function power()
 {
-    if has_cache "battery" 20 ; then
+    if has_cache "power" 5 ; then
         return
     fi
 
-    b=$(acpi)
-    if echo $b | grep -E "(Unknown|Full|Charging)" &> /dev/null ; then
-        c=$ICON
-        i="ac_01"
-        p=""
+    if acpi -a | grep 'on-line' &> /dev/null ; then
+      ac=$SEP
     else
-        p=$(echo $b | grep -Eo "([[:digit:]]+%)" | tr -d "%")
-        if [[ "$p" -lt 5 ]] ; then
-            i="bat_empty_01"
-            c=$CRIT
-        elif [[ "$p" -lt 25 ]] ; then
-            i="bat_low_01"
-            c=$ICON
-        else
-            i="bat_full_01"
-            c=$ICON
-        fi
-        p=" ${p}%"  # Make it look nice
+      ac=$FG2
     fi
 
-    ret="^fg($c)^i($I/$i.xbm)$p"
-    set_cache "battery" "$ret"
+    p=$(acpi -b | grep -Eo "([[:digit:]]+%)" | tr -d "%" | \
+      awk '{s+=$1/2} END {print s}')
+
+    if [[ $p -lt 10 ]] ; then
+        i="bat_empty_01"
+        c=$CRIT
+    elif [[ $p -lt 50 ]] ; then
+        i="bat_low_01"
+        c=$ICON
+    else
+        i="bat_full_01"
+        c=$ICON
+    fi
+
+    ret="^fg($ac)^i($I/ac_01.xbm) ^fg($c)^i($I/$i.xbm) ${p%.*}%"
+    set_cache "power" "$ret"
 }
 
 function volume()
@@ -188,8 +194,39 @@ function processes()
     fi
 
     proc=$(expr $(ps -A | wc -l) - 1)
-    ret="^fg($ICON)^i($I/cpu.xbm) ^fg()$proc "
+    ret="^fg($ICON)^i($I/cpu.xbm) ^fg()$proc"
     set_cache "processes" "$ret"
+}
+
+function memory()
+{
+    if has_cache "memory" 10 ; then
+        return
+    fi
+
+    free_mem=$(free -m | tr -s ' ' | sed '/^Mem/!d' | cut -d" " -f4)
+    used_swap=$(free -m | tr -s ' ' | sed '/^Swap/!d' | cut -d" " -f3)
+
+    if [[ "$free_mem" -lt 100 ]]; then
+        mem_c=$CRIT
+    elif [[ "$free_mem" -lt 200 ]]; then
+        mem_c=$FG
+    else
+        mem_c=$FG2
+    fi
+
+    if [[ "$used_swap" -gt 2000 ]]; then
+        swap_c=$CRIT
+    elif [[ "$used_swap" -gt 1000 ]]; then
+        swap_c=$FG
+    else
+        swap_c=$FG2
+    fi
+
+    ret="^fg($ICON)^i($I/mem.xbm) "
+    ret+="^fg($mem_c)${free_mem}^fg($SEP)/^fg($swap_c)$used_swap"
+
+    set_cache "memory" "$ret"
 }
 
 function packages()
@@ -203,7 +240,7 @@ function packages()
     ipkgs=${counts[1]}
     pkgs=${counts[2]}
 
-    if [[ pkgs -gt 0 ]]; then
+    if [[ -n "$pkgs" ]]; then
         if [[ $pkgs -gt $4 ]]; then
             c=$CRIT
         elif [[ $pkgs -gt $3 ]]; then
@@ -213,7 +250,7 @@ function packages()
         fi
         pkgs="^fg($SEP)/^fg($c)$pkgs"
     else
-        pkgs=""
+        pkgs="^fg($FG2)na^fg()"
     fi
 
     ret="^fg($ICON)^i($I/pacman.xbm) ^fg()${ipkgs}$pkgs"
@@ -233,7 +270,7 @@ function mp3()
         set_cache "mp3" ""
         return
     else
-        MP3_CACHE=1
+        MP3_CACHE=5
     fi
 
     if [[ "$ACTION" != "pause" ]]; then
@@ -248,47 +285,9 @@ function mp3()
     set_cache "mp3" "$ret"
 }
 
-function mancx()
-{
-    if has_cache "mancx" 60; then
-        return
-    fi
-
-    uq="SELECT COUNT(*) FROM users_profile"
-    iq="SELECT COUNT(*) FROM users_invite"
-
-    ds="WHERE date_created > DATE_SUB(NOW(), INTERVAL 1 DAY)"
-    uqd="$uq $ds"
-    iqd="$iq $ds"
-    i="AND invite_type = 'invite'"
-    fbd="$iqd AND medium='facebook' $i"
-    lid="$iqd AND medium='linkedin' $i"
-    vdd="$iqd AND medium='viadeo' $i"
-
-    q="$uq; $uqd; $iq; $fbd; $lid; $vdd"
-    echo $q > /tmp/q
-    d=$(ssh dt mysql mancx_django -e ${(qqq)q})
-    a=(${(f)d})
-
-    usr=${a[2]}
-    usrt=${a[4]}
-    inv=${a[6]}
-    fbt=${a[8]}
-    lit=${a[10]}
-    vdt=${a[12]}
-
-    ret="^i($I/fox.xbm) ${usr}(^fg(#4AAD36)${usrt}^fg())^fg($FG2)/"
-    ret+="^fg()${inv}("
-    ret+="^fg(#3b5998)${fbt}^fg($FG2)/"
-    ret+="^fg(#0181B2)${lit}^fg($FG2)/"
-    ret+="^fg(#ee7600)${vdt}"
-    ret+="^fg())"
-    set_cache "mancx" "$ret"
-}
-
 function dates()
 {
-    f="+%Y^fg($FG2).^fg()%m^fg($FG2).^fg()%d^fg($SEP)/^fg($FG2)%a"
+    f="+^fg()%Y^fg($FG2).^fg()%m^fg($FG2).^fg()%d^fg($SEP)/^fg($FG2)%a"
     f+=" ^fg($SEP)| ^fg()%H^fg($FG2):^fg()%M^fg($FG2):^fg()%S"
 
     echo -n $(date $f)
@@ -312,49 +311,69 @@ function arrow()
     else
         s=">"
     fi
-    echo -n " ^fg($BAR_FG)${s}^fg($SEP)${s}^fg($FG2)${s} "
+    echo -n " ^fg($FG2)${s}^fg($SEP)${s}^fg($ICON)${s} "
     return
+}
+
+function force()
+{
+    if [[ -f "$DIR/force" ]]; then
+        echo -n "^fg($FG2)!"
+        rm "$DIR/force"
+    else
+        echo -n " "
+    fi
 }
 
 
 # If already running, just forcibly refresh that one
-if [[ $RUNNING -gt 1 ]]; then
+if [[ -f $DIR/pid ]] && [[ -d /proc/$(< $DIR/pid) ]]; then
     touch $DIR/force
 else
+    echo $$ > $DIR/pid
+
     touch $DIR/force
     while true; do
         E=$(date +'%s')
 
-        kernel; sep
-        mancx; sep
-        mp3;
-        processes;
-        battery;
-        load;
-        space;
-        packages 'packages' '$(<$COUNT)' 10 20; sep
-        mounted "nl:";
-        ninjaloot;
-        mounted "nl:/warez";
-        warez;
-        space;
-        packages 'npackages' '$(ssh nl cat $COUNT)' 50 100; sep
-        volume; sep
-        internets;
-        wireless; sep
-        #mail; sep
-        dates
-
-        if [[ -f "$DIR/force" ]]; then
-            echo -n "^fg($FG2)!"
-            rm "$DIR/force"
-        else
-            echo -n " "
+        if [[ -f $DIR/restart ]] ; then
+            rm $DIR/{restart,pid}
+            echo " ... "
+            $SELF &|
+            exit 0
         fi
 
-        echo
+        left=$(
+            space;
+            kernel; sep;
+            mail; sep
+        )
+        right=$(
+            processes; sep
+            memory; sep
+            power; sep
+            load; sep;
+            packages 'packages' '$(<$COUNT)' 10 20; sep
+            mounted "$REMOTE:";
+            ninjaloot;
+            mounted "$REMOTE:/warez";
+            warez; space;
+            packages 'npackages' '$(ssh $REMOTE cat $COUNT)' 50 100; sep
+            mp3
+            volume; sep
+            internets;
+            wireless;
+            arrow true
+            dates
+            force
+        )
+
+        right_text_only=$(echo -n "$right" | sed 's.\^[^(]*([^)]*)..g')
+        width=$(textwidth "$FONT" "$right_text_only")
+        displacer="^pa($(($X - $width - 156)))"
+        echo $left $displacer $right
         sleep 1
     done | \
-         dzen2 -fn $FONT -bg $BG -h 17 -ta r -sa rc -dock
+         dzen2 -fn $FONT -bg $BG -h 17 -ta l -sa rc -dock
 fi
 exit 0

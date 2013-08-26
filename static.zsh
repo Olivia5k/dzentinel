@@ -5,13 +5,13 @@ DIR="$XDG_CACHE_HOME/dzen"
 # FONT="xft:inconsolata:pixelsize=12:spacing:proportional"
 # FONT="-xos4-terminus-*-*-*-*-14-*-*-*-*-*-*-*"
 FONT="-*-montecarlo-medium-*-*-*-11-*-*-*-*-*-*-*"
-BG="#151515"
+BG="#111117"
 
 d="[[:digit:]]"
 SIZE=$(xrandr | grep -Eo "$d+x$d+\+$d+\+$d+")
 X=$(echo $SIZE | cut -f1 -dx)
 Y=$(echo $SIZE | cut -f2 -dx | sed -r "s/\+$d+\+$d+//")
-X=1785
+# X=1785
 
 #Colors
 CRIT="#ee0d0d"
@@ -21,13 +21,12 @@ BAR_BG="#363636"
 FG="#9d9d9d"
 #FG2="#5f656b"
 FG2="#666666"
-BG="#151515"
 BG2="#292929"
 ICON="#888888"
-SEP="#225587"
+SEP="#6c8ca7"
 
 # Static variables
-I="/home/daethorian/.local/icons"  # Iconpath. Cut down to "I" to save space
+I="$HOME/.local/icons"  # Iconpath. Cut down to "I" to save space
 REMOTE="nl"  # ssh config
 CHECKHOST="google.com"
 NETCFG="/var/run/network/last_profile"
@@ -37,8 +36,6 @@ MP3_CACHE=5
 
 # Storage variables
 E=$(date +'%s')
-RUNNING=$(ps haux | grep -i $NAME | grep -Ev '(grep|vim)' \
-    | grep -i $NAME | wc -l)
 
 
 function has_cache()
